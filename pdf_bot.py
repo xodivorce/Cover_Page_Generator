@@ -104,7 +104,7 @@ def edit_pdf(name: str, college_id: str) -> str:
     return output_pdf
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Hi! I'm a Cover page & Report Geanerator for your major project (Group 4). Please send your ull name to continue:")
+    await update.message.reply_text("Hi! I'm a Cover page & Report Geanerator for your major project (Group 4). Please send your full name to continue:")
 
     return NAME
 
@@ -137,17 +137,16 @@ async def get_college_id(update: Update, context: CallbackContext):
             with open(report_pdf_path, "rb") as report_pdf_file:
                 await update.message.reply_document(report_pdf_file, filename=f"Health_Report_for_{name}.pdf")
             
-            # Clean up temporary files
             os.remove(pdf_path)
             os.remove(report_pdf_path)
 
         except Exception as e:
-            await update.message.reply_text(f"Oops! Something went wrong while generating the report pages: {e}")
+            await update.message.reply_text(f"Oops! Something went wrong while generating the report pages: {e} \nSend /start to regenerate again.")
             logging.error(f"Error while generating report for {name}: {e}")
             return ConversationHandler.END
 
     except Exception as e:
-        await update.message.reply_text(f"Oops! Something went wrong while generating the Cover page: {e}")
+        await update.message.reply_text(f"Oops! Something went wrong while generating the report pages: {e} \nSend /start to regenerate again.")
         logging.error(f"Error while generating cover page for {name}: {e}")
         return ConversationHandler.END
 
