@@ -1,10 +1,11 @@
 import fitz
 import os
+import time
+import tempfile
 from dotenv import load_dotenv
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
-import tempfile
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -12,16 +13,53 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PDF_DIR = os.path.join(os.getcwd(), "assets/pdf")
 FONT_PATH = os.path.join(os.getcwd(), "assets/font/LexendDeca-Regular.ttf")
 INPUT_PDF = os.path.join(PDF_DIR, "Cover_Page.pdf")
+HEYGION_PDF = os.path.join(PDF_DIR, "HEYGION_HEALTH_REPORT.pdf")
 
 logging.basicConfig(level=logging.INFO)
 
-# Define states for the conversation
 NAME, COLLEGE_ID = range(2)
+
+def estimate_text_width(text: str, fontsize: int, fontname: str) -> float:
+    average_char_width = 0.6
+    text_length = len(text) * average_char_width * fontsize
+    return text_length
+
+def edit_REPORT_pdf(name: str) -> str:
+    name = name.upper()
+    doc = fitz.open(HEYGION_PDF)
+    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    output_pdf = temp_pdf.name
+
+    pages_to_edit = [3, 9, 13, 17, 24, 31, 33]
+
+    font_name = "LexendDeca"
+    fontsize = 14
+
+    for page_num, page in enumerate(doc):
+        width, height = page.rect.width, page.rect.height
+        page.insert_font(fontname=font_name, fontfile=FONT_PATH)
+
+        if page_num in pages_to_edit:
+            text_y = 700
+            text_width = estimate_text_width(name, fontsize=fontsize, fontname=font_name)
+            right_gap = 100
+            adjusted_text_x = width - right_gap - text_width
+            page.insert_text(
+                (adjusted_text_x, text_y),
+                name,
+                fontsize=fontsize,
+                color=(0, 0, 0),
+                fontname=font_name,
+                overlay=True
+            )
+
+    doc.save(output_pdf)
+    doc.close()
+
+    return output_pdf
 
 def edit_pdf(name: str, college_id: str) -> str:
     doc = fitz.open(INPUT_PDF)
-    
-    # Create a temporary file for the output
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     output_pdf = temp_pdf.name
 
@@ -66,37 +104,37 @@ def edit_pdf(name: str, college_id: str) -> str:
     return output_pdf
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Hi! I'm a cover page generator for your major project (Group 4). Please send your full name:")
+    await update.message.reply_text("Hi! I'm a cover page and health report generator for your project. Please send your full name:")
 
     return NAME
 
 async def get_name(update: Update, context: CallbackContext):
     name = update.message.text.strip()
-    # Capitalize the first letter of each word in the name
     name = ' '.join(word.capitalize() for word in name.split())
 
-    context.user_data['name'] = name  # Store name in user data
+    context.user_data['name'] = name
     
-    await update.message.reply_text(f"Got it! Now, please send your college ID:")
+    await update.message.reply_text("Got it! Now, please send your college ID:")
 
     return COLLEGE_ID
 
 async def get_college_id(update: Update, context: CallbackContext):
     college_id = update.message.text.strip()
-    name = context.user_data['name']  # Retrieve stored name
+    name = context.user_data['name']
     
-    # Inform the user that the cover page is being generated
-    await update.message.reply_text(f"Generating your cover page... Please wait a moment.")
+    await update.message.reply_text("Generating your cover page and health report... Please wait a moment.")
 
-    # Generate the PDF
     pdf_path = edit_pdf(name, college_id)
+    report_pdf_path = edit_REPORT_pdf(name)
 
-    # Send the generated PDF
     with open(pdf_path, "rb") as pdf_file:
         await update.message.reply_document(pdf_file, filename=f"Cover_for_{name}.pdf")
 
-    # Delete the temporary PDF file after sending
+    with open(report_pdf_path, "rb") as report_pdf_file:
+        await update.message.reply_document(report_pdf_file, filename=f"Health_Report_for_{name}.pdf")
+
     os.remove(pdf_path)
+    os.remove(report_pdf_path)
 
     return ConversationHandler.END
 
