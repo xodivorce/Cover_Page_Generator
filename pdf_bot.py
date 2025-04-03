@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
+import tempfile
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -19,7 +20,10 @@ NAME, COLLEGE_ID = range(2)
 
 def edit_pdf(name: str, college_id: str) -> str:
     doc = fitz.open(INPUT_PDF)
-    output_pdf = os.path.join(PDF_DIR, f"Cover_for_{name}.pdf")
+    
+    # Create a temporary file for the output
+    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    output_pdf = temp_pdf.name
 
     college_id = college_id.upper()
 
@@ -80,8 +84,12 @@ async def get_college_id(update: Update, context: CallbackContext):
     
     pdf_path = edit_pdf(name, college_id)
 
+    # Send the generated PDF
     with open(pdf_path, "rb") as pdf_file:
         await update.message.reply_document(pdf_file, filename=f"Cover_for_{name}.pdf")
+
+    # Delete the temporary PDF file after sending
+    os.remove(pdf_path)
 
     return ConversationHandler.END
 
