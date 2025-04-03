@@ -38,7 +38,7 @@ def edit_pdf(name: str, college_id: str) -> str:
             for inst in text_instances:
                 x, y, w, h = inst
                 text_x = min(x + w + 10, width - 239)
-                text_y = min(max(y + h - 5, 20), height - 88.5)
+                text_y = min(max(y + h - 5, 20), height - 88)
 
                 page.insert_text(
                     (text_x, text_y),
@@ -50,7 +50,7 @@ def edit_pdf(name: str, college_id: str) -> str:
                 )
 
                 college_x = text_x
-                college_y = text_y + 5
+                college_y = text_y + 4
 
                 page.insert_textbox(
                     fitz.Rect(college_x, college_y, college_x + 234.5, college_y + 60),
@@ -72,6 +72,9 @@ async def start(update: Update, context: CallbackContext):
 
 async def get_name(update: Update, context: CallbackContext):
     name = update.message.text.strip()
+    # Capitalize the first letter of each word in the name
+    name = ' '.join(word.capitalize() for word in name.split())
+
     context.user_data['name'] = name  # Store name in user data
     
     await update.message.reply_text(f"Got it! Now, please send your college ID:")
@@ -82,6 +85,10 @@ async def get_college_id(update: Update, context: CallbackContext):
     college_id = update.message.text.strip()
     name = context.user_data['name']  # Retrieve stored name
     
+    # Inform the user that the cover page is being generated
+    await update.message.reply_text(f"Generating your cover page... Please wait a moment.")
+
+    # Generate the PDF
     pdf_path = edit_pdf(name, college_id)
 
     # Send the generated PDF
