@@ -66,7 +66,7 @@ def edit_pdf(name: str, college_id: str) -> str:
     return output_pdf
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Hi! Please send your full name:")
+    await update.message.reply_text("Hi! I'm a cover page generator for your major project (Group 4). Please send your full name:")
 
     return NAME
 
