@@ -1,114 +1,110 @@
-import logging
-import fitz  # PyMuPDF
+import fitz
 import os
 from dotenv import load_dotenv
+import logging
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    CallbackContext,
-    ConversationHandler,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
 
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-
-# Load environment variables
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# PDF Configuration
-PDF_DIR = os.path.join(os.getcwd(), "assets/pdf")  # Ensure assets/pdf exists
+PDF_DIR = os.path.join(os.getcwd(), "assets/pdf")
+FONT_PATH = os.path.join(os.getcwd(), "assets/font/LexendDeca-Regular.ttf")
 INPUT_PDF = os.path.join(PDF_DIR, "Cover_Page.pdf")
-OLD_NAME = "Prasid Mandal"
 
-# Conversation states
-NAME = 1
+logging.basicConfig(level=logging.INFO)
 
-def ensure_pdf_exists():
-    """Check if the input PDF exists; raise error otherwise."""
-    if not os.path.exists(INPUT_PDF):
-        raise FileNotFoundError(f"Error: The PDF file was not found at {INPUT_PDF}")
+# Define states for the conversation
+NAME, COLLEGE_ID = range(2)
 
-async def start(update: Update, context: CallbackContext) -> int:
-    """Initiate conversation, ask for the user's name."""
-    await update.message.reply_text(
-        "Hey! Send me your name, and I'll edit the PDF for you. 😊"
-    )
-    return NAME
-
-def edit_pdf(name: str) -> str:
-    """Edits the PDF, replacing OLD_NAME with the provided name."""
-    ensure_pdf_exists()
-    
-    output_pdf = os.path.join(PDF_DIR, f"output_{name}.pdf")
-
+def edit_pdf(name: str, college_id: str) -> str:
     doc = fitz.open(INPUT_PDF)
-    replaced = False
+    output_pdf = os.path.join(PDF_DIR, f"Cover_for_{name}.pdf")
+
+    college_id = college_id.upper()
 
     for page in doc:
-        text_instances = page.search_for(OLD_NAME)
-        if text_instances:
-            replaced = True
-            for inst in text_instances:
-                page.insert_textbox(inst, name, fontsize=12, color=(0, 0, 0))
+        width, height = page.rect.width, page.rect.height
+        font_name = "LexendDeca"
+        page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
-    if not replaced:
-        logging.warning("No occurrences of the name were found in the PDF.")
+        text_instances = page.search_for("Name:")
+
+        if text_instances:
+            for inst in text_instances:
+                x, y, w, h = inst
+                text_x = min(x + w + 10, width - 239)
+                text_y = min(max(y + h - 5, 20), height - 88.5)
+
+                page.insert_text(
+                    (text_x, text_y),
+                    name,
+                    fontsize=18,
+                    color=(1, 1, 1),
+                    fontname=font_name,
+                    overlay=True
+                )
+
+                college_x = text_x
+                college_y = text_y + 5
+
+                page.insert_textbox(
+                    fitz.Rect(college_x, college_y, college_x + 234.5, college_y + 60),
+                    college_id,
+                    fontsize=18,
+                    color=(1, 1, 1),
+                    fontname=font_name,
+                    align=1,
+                )
 
     doc.save(output_pdf)
     doc.close()
-
     return output_pdf
 
-async def get_name(update: Update, context: CallbackContext) -> int:
-    """Handles name input, edits PDF, and sends back the modified file."""
-    user_name = update.message.text.strip()
+async def start(update: Update, context: CallbackContext):
+    await update.message.reply_text("Hi! Please send your full name:")
 
-    if not user_name:
-        await update.message.reply_text("Please enter a valid name! ❌")
-        return NAME
+    return NAME
 
-    await update.message.reply_text(f"Editing PDF with your name: {user_name}... ⏳")
+async def get_name(update: Update, context: CallbackContext):
+    name = update.message.text.strip()
+    context.user_data['name'] = name  # Store name in user data
+    
+    await update.message.reply_text(f"Got it! Now, please send your college ID:")
 
-    try:
-        modified_pdf = edit_pdf(user_name)
-        with open(modified_pdf, "rb") as pdf:
-            await update.message.reply_document(pdf, filename=f"{user_name}_edited.pdf")
-        await update.message.reply_text("Here’s your personalized PDF! 🎉")
-    except FileNotFoundError as e:
-        await update.message.reply_text(str(e))
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        await update.message.reply_text("Oops! Something went wrong. Try again later. 😢")
+    return COLLEGE_ID
+
+async def get_college_id(update: Update, context: CallbackContext):
+    college_id = update.message.text.strip()
+    name = context.user_data['name']  # Retrieve stored name
+    
+    pdf_path = edit_pdf(name, college_id)
+
+    with open(pdf_path, "rb") as pdf_file:
+        await update.message.reply_document(pdf_file, filename=f"Cover_for_{name}.pdf")
 
     return ConversationHandler.END
 
-async def cancel(update: Update, context: CallbackContext) -> int:
-    """Cancel the process."""
-    await update.message.reply_text("Cancelled. Type /start to try again.")
+async def cancel(update: Update, context: CallbackContext):
+    await update.message.reply_text("Conversation canceled. Send /start to begin again.")
     return ConversationHandler.END
 
 def main():
-    """Run the Telegram bot."""
-    if not TOKEN:
-        raise ValueError("TELEGRAM_BOT_TOKEN is missing from the .env file.")
+    application = Application.builder().token(TOKEN).build()
 
-    app = Application.builder().token(TOKEN).build()
-
-    conv_handler = ConversationHandler(
+    conversation_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
-        states={NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)]},
-        fallbacks=[CommandHandler("cancel", cancel)],
+        states={
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            COLLEGE_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_college_id)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
     )
 
-    app.add_handler(conv_handler)
-    logging.info("Bot is running... 🚀")
-    app.run_polling()
+    application.add_handler(conversation_handler)
+
+    print("Bot is running...")
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
