@@ -135,7 +135,7 @@ async def get_college_id(update: Update, context: CallbackContext):
             report_pdf_path = edit_REPORT_pdf(name)
             
             with open(report_pdf_path, "rb") as report_pdf_file:
-                await update.message.reply_document(report_pdf_file, filename=f"Health_Report_for_{name}.pdf")
+                await update.message.reply_document(report_pdf_file, filename=f"Hygeon_Report_for_{name}.pdf")
             
             os.remove(pdf_path)
             os.remove(report_pdf_path)
