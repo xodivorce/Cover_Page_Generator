@@ -30,7 +30,7 @@ def edit_REPORT_pdf(name: str) -> str:
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     output_pdf = temp_pdf.name
 
-    pages_to_edit = [3, 9, 13, 17, 24, 31, 33]
+    pages_to_edit = [3, 9, 13, 24, 31, 38, 40]
 
     font_name = "LexendDeca"
     fontsize = 14
